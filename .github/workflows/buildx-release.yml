@@ -1,0 +1,81 @@
+name: Build Buildx IDE APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-buildx:
+    name: Build Buildx IDE
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant Gradle permission
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BUILDX_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.BUILDX_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BUILDX_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.BUILDX_STORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > buildx-keystore.jks
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=buildx-keystore.jks \
+            -Pandroid.injected.signing.store.password=$STORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Buildx IDE ${{ github.ref_name }}
+          body: |
+            ## Buildx IDE Release ${{ github.ref_name }}
+            
+            Buildx IDE is a mobile Android IDE that allows you to develop Android apps directly from your phone using GitHub Actions for APK compilation.
+            
+            ### Features
+            - Code editor with syntax highlighting
+            - File explorer with GitHub integration
+            - Build APK with one click
+            - GitHub OAuth authentication
+            - Dark/Light/AMOLED themes
+            
+            ### Download
+            Download the APK below and install on your Android device (Android 8.0+ required).
+            
+            ### Setup
+            1. Install the APK
+            2. Login with your GitHub account
+            3. Select a repository to work on
+            4. Start coding and build!
+          files: app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
