@@ -1,4 +1,4 @@
-name: Build APK
+name: Buildx IDE
 
 on:
   workflow_dispatch:
